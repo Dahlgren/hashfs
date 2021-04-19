@@ -1,9 +1,9 @@
 package hashfs
 
 import (
-	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"hash"
 	"io"
 	"io/fs"
 	"mime"
@@ -28,11 +28,13 @@ type FS struct {
 	mu sync.RWMutex
 	m  map[string]string // lookup (path to hash path)
 	r  map[string]string // reverse lookup (hash path to path)
+	h  hash.Hash
 }
 
-func NewFS(fsys fs.FS) *FS {
+func NewFS(fsys fs.FS, hash hash.Hash) *FS {
 	return &FS{
 		fsys: fsys,
+		h:    hash,
 		m:    make(map[string]string),
 		r:    make(map[string]string),
 	}
@@ -85,7 +87,9 @@ func (fsys *FS) HashName(name string) string {
 	}
 
 	// Compute hash and build filename.
-	hash := sha256.Sum256(buf)
+	fsys.h.Reset()
+	fsys.h.Write(buf)
+	hash := fsys.h.Sum(nil)
 	hashname := FormatName(name, hex.EncodeToString(hash[:]))
 
 	// Store in lookups.
@@ -147,10 +151,10 @@ var hashSuffixRegex = regexp.MustCompile(`-[0-9a-f]{64}`)
 // Because FileServer is focused on small known path files, several features
 // of http.FileServer have been removed including canonicalizing directories,
 // defaulting index.html pages, precondition checks, & content range headers.
-func FileServer(fsys fs.FS) http.Handler {
+func FileServer(fsys fs.FS, hash hash.Hash) http.Handler {
 	hfsys, ok := fsys.(*FS)
 	if !ok {
-		hfsys = NewFS(fsys)
+		hfsys = NewFS(fsys, hash)
 	}
 	return &fsHandler{fsys: hfsys}
 }

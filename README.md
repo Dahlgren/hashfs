@@ -23,13 +23,13 @@ To use `hashfs`, first wrap your `embed.FS` in a `hashfs.FS` filesystem:
 //go:embed scripts stylesheets images
 var embedFS embed.FS
 
-var fsys = hashfs.NewFS(embedFS)
+var fsys = hashfs.NewFS(embedFS, sha256.New())
 ```
 
 Then attach a `hashfs.FileServer()` to your router:
 
 ```go
-http.Handle("/assets", http.StripPrefix("/assets", hashfs.FileServer(fsys)))
+http.Handle("/assets", http.StripPrefix("/assets", hashfs.FileServer(fsys, sha256.New())))
 ```
 
 Next, your html templating library can obtain the hashname of your file using
